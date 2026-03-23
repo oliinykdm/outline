@@ -443,8 +443,8 @@ export class Editor extends React.PureComponent<
       schema: this.schema,
       doc,
       plugins: [
-        ...this.keymaps,
         ...this.plugins,
+        ...this.keymaps,
         anchorPlugin(),
         dropCursor({
           color: this.props.theme.cursor,
@@ -944,7 +944,7 @@ const EditorContainer = styled(Styles)<{
       a#comment-${props.focusedCommentId}
         ~ span.component-image
         div.image-wrapper {
-        outline: ${props.theme.commentMarkBackground} solid 2px;
+        outline: ${props.theme.commentedImageOutlineDark} solid 2px;
       }
     `}
 
