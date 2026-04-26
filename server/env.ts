@@ -13,6 +13,7 @@ import {
   IsNumber,
   IsIn,
   IsBoolean,
+  Min,
 } from "class-validator";
 import uniq from "lodash/uniq";
 import { languages } from "@shared/i18n";
@@ -198,6 +199,28 @@ export class Environment {
    * set then the collaboration service must be ran as a singleton.
    */
   public REDIS_COLLABORATION_URL = environment.REDIS_COLLABORATION_URL;
+
+  /**
+   * The interval in milliseconds between redis connection healthchecks. Each
+   * healthcheck issues a PING and forces a reconnect if it fails.
+   */
+  @IsNumber()
+  @Min(1000)
+  public REDIS_HEALTHCHECK_INTERVAL = parseInt(
+    environment.REDIS_HEALTHCHECK_INTERVAL || "30000",
+    10
+  );
+
+  /**
+   * The timeout in milliseconds for a redis healthcheck PING before the
+   * connection is considered stuck and forcibly reconnected.
+   */
+  @IsNumber()
+  @Min(100)
+  public REDIS_HEALTHCHECK_TIMEOUT = parseInt(
+    environment.REDIS_HEALTHCHECK_TIMEOUT || "5000",
+    10
+  );
 
   /**
    * The fully qualified, external facing domain name of the server.
@@ -820,6 +843,14 @@ export class Environment {
   public ALLOWED_PRIVATE_IP_ADDRESSES = this.toOptionalCommaList(
     environment.ALLOWED_PRIVATE_IP_ADDRESSES
   );
+
+  /**
+   * The search provider to use. Defaults to "postgres" which uses PostgreSQL
+   * full-text search. Alternative providers can be registered via plugins.
+   */
+  @IsOptional()
+  public SEARCH_PROVIDER =
+    this.toOptionalString(environment.SEARCH_PROVIDER) ?? "postgres";
 
   /**
    * The product name

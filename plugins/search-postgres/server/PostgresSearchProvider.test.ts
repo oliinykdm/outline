@@ -4,7 +4,6 @@ import {
   SortFilter,
   StatusFilter,
 } from "@shared/types";
-import SearchHelper from "@server/models/helpers/SearchHelper";
 import {
   buildDocument,
   buildDraftDocument,
@@ -14,15 +13,19 @@ import {
   buildShare,
   buildGroup,
 } from "@server/test/factories";
-import UserMembership from "../UserMembership";
-import GroupMembership from "../GroupMembership";
+import UserMembership from "@server/models/UserMembership";
+import GroupMembership from "@server/models/GroupMembership";
+import SearchProviderManager from "@server/utils/SearchProviderManager";
+import PostgresSearchProvider from "./PostgresSearchProvider";
+
+const provider = SearchProviderManager.getProvider();
 
 beforeEach(async () => {
   jest.resetAllMocks();
   await buildDocument();
 });
 
-describe("SearchHelper", () => {
+describe("PostgresSearchProvider", () => {
   describe("#searchForTeam", () => {
     it("should return search results from public collections", async () => {
       const team = await buildTeam();
@@ -34,7 +37,7 @@ describe("SearchHelper", () => {
         collectionId: collection.id,
         title: "test",
       });
-      const { results } = await SearchHelper.searchForTeam(team, {
+      const { results } = await provider.searchForTeam(team, {
         query: "test",
       });
       expect(results.length).toBe(1);
@@ -58,7 +61,7 @@ describe("SearchHelper", () => {
           title: "document 2",
         }),
       ]);
-      const { results } = await SearchHelper.searchForTeam(team);
+      const { results } = await provider.searchForTeam(team);
       expect(results.length).toBe(2);
       expect(results.map((r) => r.document.id).sort()).toEqual(
         documents.map((doc) => doc.id).sort()
@@ -76,7 +79,7 @@ describe("SearchHelper", () => {
         collectionId: collection.id,
         title: "test",
       });
-      const { results } = await SearchHelper.searchForTeam(team, {
+      const { results } = await provider.searchForTeam(team, {
         query: "test",
       });
       expect(results.length).toBe(0);
@@ -93,7 +96,7 @@ describe("SearchHelper", () => {
         collectionId: collection.id,
         title: "test",
       });
-      const { results } = await SearchHelper.searchForTeam(team, {
+      const { results } = await provider.searchForTeam(team, {
         query: "test",
         collectionId: collection.id,
       });
@@ -122,7 +125,7 @@ describe("SearchHelper", () => {
         includeChildDocuments: true,
       });
 
-      const { results } = await SearchHelper.searchForTeam(team, {
+      const { results } = await provider.searchForTeam(team, {
         query: "test",
         collectionId: collection.id,
         share,
@@ -132,7 +135,7 @@ describe("SearchHelper", () => {
 
     it("should handle no collections", async () => {
       const team = await buildTeam();
-      const { results } = await SearchHelper.searchForTeam(team, {
+      const { results } = await provider.searchForTeam(team, {
         query: "test",
       });
       expect(results.length).toBe(0);
@@ -148,7 +151,7 @@ describe("SearchHelper", () => {
         collectionId: collection.id,
         title: "test with backslash \\",
       });
-      const { results } = await SearchHelper.searchForTeam(team, {
+      const { results } = await provider.searchForTeam(team, {
         query: "test with backslash \\",
       });
       expect(results.length).toBe(1);
@@ -170,7 +173,7 @@ describe("SearchHelper", () => {
         collectionId: collection.id,
         title: "test number 2",
       });
-      const { total } = await SearchHelper.searchForTeam(team, {
+      const { total } = await provider.searchForTeam(team, {
         query: "test",
       });
       expect(total).toBe(2);
@@ -188,7 +191,7 @@ describe("SearchHelper", () => {
       });
       document.title = "change";
       await document.save();
-      const { total } = await SearchHelper.searchForTeam(team, {
+      const { total } = await provider.searchForTeam(team, {
         query: "test number",
       });
       expect(total).toBe(1);
@@ -206,7 +209,7 @@ describe("SearchHelper", () => {
       });
       document.title = "change";
       await document.save();
-      const { total } = await SearchHelper.searchForTeam(team, {
+      const { total } = await provider.searchForTeam(team, {
         query: "title doesn't exist",
       });
       expect(total).toBe(0);
@@ -234,7 +237,7 @@ describe("SearchHelper", () => {
         deletedAt: new Date(),
         title: "test",
       });
-      const { results } = await SearchHelper.searchForUser(user, {
+      const { results } = await provider.searchForUser(user, {
         query: "test",
       });
       expect(results.length).toBe(1);
@@ -263,7 +266,7 @@ describe("SearchHelper", () => {
           title: "document 2",
         }),
       ]);
-      const { results } = await SearchHelper.searchForUser(user);
+      const { results } = await provider.searchForUser(user);
       expect(results.length).toBe(2);
       expect(results.map((r) => r.document.id).sort()).toEqual(
         documents.map((doc) => doc.id).sort()
@@ -291,7 +294,7 @@ describe("SearchHelper", () => {
           title: "document 2",
         }),
       ]);
-      const { results } = await SearchHelper.searchForUser(user, {
+      const { results } = await provider.searchForUser(user, {
         collectionId: collection.id,
       });
       expect(results.length).toBe(2);
@@ -339,7 +342,7 @@ describe("SearchHelper", () => {
           title: "document 2 in collection 2",
         }),
       ]);
-      const { results } = await SearchHelper.searchForUser(user, {
+      const { results } = await provider.searchForUser(user, {
         collectionId: collection1.id,
       });
       expect(results.length).toBe(2);
@@ -351,7 +354,7 @@ describe("SearchHelper", () => {
     it("should handle no collections", async () => {
       const team = await buildTeam();
       const user = await buildUser({ teamId: team.id });
-      const { results } = await SearchHelper.searchForUser(user, {
+      const { results } = await provider.searchForUser(user, {
         query: "test",
       });
       expect(results.length).toBe(0);
@@ -381,11 +384,51 @@ describe("SearchHelper", () => {
         title: "test",
         archivedAt: new Date(),
       });
-      const { results } = await SearchHelper.searchForUser(user, {
+      const { results } = await provider.searchForUser(user, {
         query: "test",
         statusFilter: [StatusFilter.Draft],
       });
       expect(results.length).toBe(1);
+    });
+
+    it("should include drafts with no collection created by user", async () => {
+      const user = await buildUser();
+      const draft = await buildDraftDocument({
+        teamId: user.teamId,
+        userId: user.id,
+        createdById: user.id,
+        collectionId: null,
+        title: "test",
+      });
+      const { results } = await provider.searchForUser(user, {
+        query: "test",
+        statusFilter: [StatusFilter.Draft],
+      });
+      expect(results.length).toBe(1);
+      expect(results[0].document?.id).toBe(draft.id);
+    });
+
+    it("should not include drafts created by user in inaccessible collections", async () => {
+      const team = await buildTeam();
+      const user = await buildUser({ teamId: team.id });
+      const otherUser = await buildUser({ teamId: team.id });
+      const privateCollection = await buildCollection({
+        teamId: team.id,
+        userId: otherUser.id,
+        permission: null,
+      });
+      await buildDraftDocument({
+        teamId: team.id,
+        userId: user.id,
+        createdById: user.id,
+        collectionId: privateCollection.id,
+        title: "test",
+      });
+      const { results } = await provider.searchForUser(user, {
+        query: "test",
+        statusFilter: [StatusFilter.Draft],
+      });
+      expect(results.length).toBe(0);
     });
 
     it("should not include drafts with user read permission", async () => {
@@ -406,7 +449,7 @@ describe("SearchHelper", () => {
         permission: DocumentPermission.Read,
       });
 
-      const { results } = await SearchHelper.searchForUser(user, {
+      const { results } = await provider.searchForUser(user, {
         query: "test",
         statusFilter: [StatusFilter.Published, StatusFilter.Archived],
       });
@@ -437,7 +480,7 @@ describe("SearchHelper", () => {
         title: "test",
         archivedAt: new Date(),
       });
-      const { results } = await SearchHelper.searchForUser(user, {
+      const { results } = await provider.searchForUser(user, {
         query: "test",
         statusFilter: [StatusFilter.Published],
       });
@@ -474,7 +517,7 @@ describe("SearchHelper", () => {
         title: "test",
         archivedAt: new Date(),
       });
-      const { results } = await SearchHelper.searchForUser(user, {
+      const { results } = await provider.searchForUser(user, {
         query: "test",
         statusFilter: [StatusFilter.Archived],
       });
@@ -502,7 +545,7 @@ describe("SearchHelper", () => {
         title: "test",
         archivedAt: new Date(),
       });
-      const { results } = await SearchHelper.searchForUser(user, {
+      const { results } = await provider.searchForUser(user, {
         query: "test",
         statusFilter: [StatusFilter.Archived, StatusFilter.Published],
       });
@@ -530,7 +573,7 @@ describe("SearchHelper", () => {
         title: "archived not draft",
         archivedAt: new Date(),
       });
-      const { results } = await SearchHelper.searchForUser(user, {
+      const { results } = await provider.searchForUser(user, {
         query: "draft",
         statusFilter: [StatusFilter.Published, StatusFilter.Draft],
       });
@@ -558,7 +601,7 @@ describe("SearchHelper", () => {
         title: "archived not draft",
         archivedAt: new Date(),
       });
-      const { results } = await SearchHelper.searchForUser(user, {
+      const { results } = await provider.searchForUser(user, {
         query: "draft",
         statusFilter: [StatusFilter.Draft, StatusFilter.Archived],
       });
@@ -584,7 +627,7 @@ describe("SearchHelper", () => {
         collectionId: collection.id,
         title: "test number 2",
       });
-      const { total } = await SearchHelper.searchForUser(user, {
+      const { total } = await provider.searchForUser(user, {
         query: "test",
       });
       expect(total).toBe(2);
@@ -605,7 +648,7 @@ describe("SearchHelper", () => {
       });
       document.title = "change";
       await document.save();
-      const { total } = await SearchHelper.searchForUser(user, {
+      const { total } = await provider.searchForUser(user, {
         query: "test number",
       });
       expect(total).toBe(1);
@@ -626,7 +669,7 @@ describe("SearchHelper", () => {
       });
       document.title = "change";
       await document.save();
-      const { total } = await SearchHelper.searchForUser(user, {
+      const { total } = await provider.searchForUser(user, {
         query: "title doesn't exist",
       });
       expect(total).toBe(0);
@@ -647,7 +690,7 @@ describe("SearchHelper", () => {
       });
       document.title = "change";
       await document.save();
-      const { total } = await SearchHelper.searchForUser(user, {
+      const { total } = await provider.searchForUser(user, {
         query: `"test number"`,
       });
       expect(total).toBe(1);
@@ -668,7 +711,7 @@ describe("SearchHelper", () => {
       });
       document.title = "change";
       await document.save();
-      const { total } = await SearchHelper.searchForUser(user, {
+      const { total } = await provider.searchForUser(user, {
         query: "env: ",
       });
       expect(total).toBe(1);
@@ -681,7 +724,7 @@ describe("SearchHelper", () => {
       const collection = await buildCollection({
         userId: otherUser.id,
         teamId: team.id,
-        permission: null, // private collection
+        permission: null,
       });
       const document = await buildDocument({
         userId: otherUser.id,
@@ -690,7 +733,6 @@ describe("SearchHelper", () => {
         title: "group test document",
       });
 
-      // Document with no access should not appear in results
       await buildDocument({
         userId: otherUser.id,
         teamId: team.id,
@@ -698,7 +740,6 @@ describe("SearchHelper", () => {
         title: "group test document 2",
       });
 
-      // Create a group and add the user to it
       const group = await buildGroup({
         teamId: team.id,
       });
@@ -708,14 +749,13 @@ describe("SearchHelper", () => {
         },
       });
 
-      // Add group membership to the document
       await GroupMembership.create({
         createdById: otherUser.id,
         groupId: group.id,
         documentId: document.id,
       });
 
-      const { results } = await SearchHelper.searchForUser(user, {
+      const { results } = await provider.searchForUser(user, {
         query: "group test",
       });
 
@@ -739,7 +779,7 @@ describe("SearchHelper", () => {
         collectionId: collection.id,
         title: "test",
       });
-      const documents = await SearchHelper.searchTitlesForUser(user, {
+      const documents = await provider.searchTitlesForUser(user, {
         query: "test",
       });
       expect(documents.length).toBe(1);
@@ -774,7 +814,7 @@ describe("SearchHelper", () => {
         collectionId: collection1.id,
         title: "test",
       });
-      const documents = await SearchHelper.searchTitlesForUser(user, {
+      const documents = await provider.searchTitlesForUser(user, {
         query: "test",
         collectionId: collection.id,
       });
@@ -785,7 +825,7 @@ describe("SearchHelper", () => {
     it("should handle no collections", async () => {
       const team = await buildTeam();
       const user = await buildUser({ teamId: team.id });
-      const documents = await SearchHelper.searchTitlesForUser(user, {
+      const documents = await provider.searchTitlesForUser(user, {
         query: "test",
       });
       expect(documents.length).toBe(0);
@@ -815,7 +855,7 @@ describe("SearchHelper", () => {
         title: "test",
         archivedAt: new Date(),
       });
-      const documents = await SearchHelper.searchTitlesForUser(user, {
+      const documents = await provider.searchTitlesForUser(user, {
         query: "test",
         statusFilter: [StatusFilter.Draft],
       });
@@ -846,7 +886,7 @@ describe("SearchHelper", () => {
         title: "test",
         archivedAt: new Date(),
       });
-      const documents = await SearchHelper.searchTitlesForUser(user, {
+      const documents = await provider.searchTitlesForUser(user, {
         query: "test",
         statusFilter: [StatusFilter.Published],
       });
@@ -883,7 +923,7 @@ describe("SearchHelper", () => {
         title: "test",
         archivedAt: new Date(),
       });
-      const documents = await SearchHelper.searchTitlesForUser(user, {
+      const documents = await provider.searchTitlesForUser(user, {
         query: "test",
         statusFilter: [StatusFilter.Archived],
       });
@@ -911,7 +951,7 @@ describe("SearchHelper", () => {
         title: "test",
         archivedAt: new Date(),
       });
-      const documents = await SearchHelper.searchTitlesForUser(user, {
+      const documents = await provider.searchTitlesForUser(user, {
         query: "test",
         statusFilter: [StatusFilter.Archived, StatusFilter.Published],
       });
@@ -939,7 +979,7 @@ describe("SearchHelper", () => {
         title: "archived not draft",
         archivedAt: new Date(),
       });
-      const documents = await SearchHelper.searchTitlesForUser(user, {
+      const documents = await provider.searchTitlesForUser(user, {
         query: "draft",
         statusFilter: [StatusFilter.Published, StatusFilter.Draft],
       });
@@ -967,7 +1007,7 @@ describe("SearchHelper", () => {
         title: "archived not draft",
         archivedAt: new Date(),
       });
-      const documents = await SearchHelper.searchTitlesForUser(user, {
+      const documents = await provider.searchTitlesForUser(user, {
         query: "draft",
         statusFilter: [StatusFilter.Draft, StatusFilter.Archived],
       });
@@ -981,7 +1021,7 @@ describe("SearchHelper", () => {
       const collection = await buildCollection({
         userId: otherUser.id,
         teamId: team.id,
-        permission: null, // private collection
+        permission: null,
       });
       const document = await buildDocument({
         userId: otherUser.id,
@@ -990,7 +1030,6 @@ describe("SearchHelper", () => {
         title: "group title test document",
       });
 
-      // Document with no access should not appear in results
       await buildDocument({
         userId: otherUser.id,
         teamId: team.id,
@@ -998,7 +1037,6 @@ describe("SearchHelper", () => {
         title: "group title test document 2",
       });
 
-      // Create a group and add the user to it
       const group = await buildGroup({
         teamId: team.id,
       });
@@ -1008,14 +1046,13 @@ describe("SearchHelper", () => {
         },
       });
 
-      // Add group membership to the document
       await GroupMembership.create({
         createdById: otherUser.id,
         groupId: group.id,
         documentId: document.id,
       });
 
-      const documents = await SearchHelper.searchTitlesForUser(user, {
+      const documents = await provider.searchTitlesForUser(user, {
         query: "group title",
       });
 
@@ -1039,7 +1076,7 @@ describe("SearchHelper", () => {
         name: "Other Collection",
       });
 
-      const results = await SearchHelper.searchCollectionsForUser(user, {
+      const results = await provider.searchCollectionsForUser(user, {
         query: "test",
       });
 
@@ -1061,7 +1098,7 @@ describe("SearchHelper", () => {
         name: "Beta",
       });
 
-      const results = await SearchHelper.searchCollectionsForUser(user);
+      const results = await provider.searchCollectionsForUser(user);
 
       expect(results.length).toBe(2);
       expect(results[0].id).toBe(collection1.id);
@@ -1096,7 +1133,7 @@ describe("SearchHelper", () => {
         title: "Beta Document",
       });
 
-      const { results } = await SearchHelper.searchForUser(user, {
+      const { results } = await provider.searchForUser(user, {
         sort: SortFilter.Title,
         direction: DirectionFilter.ASC,
       });
@@ -1133,7 +1170,7 @@ describe("SearchHelper", () => {
         title: "Beta Document",
       });
 
-      const { results } = await SearchHelper.searchForUser(user, {
+      const { results } = await provider.searchForUser(user, {
         sort: SortFilter.Title,
         direction: DirectionFilter.DESC,
       });
@@ -1176,7 +1213,7 @@ describe("SearchHelper", () => {
         updatedAt: new Date("2023-12-01"),
       });
 
-      const { results } = await SearchHelper.searchForUser(user, {
+      const { results } = await provider.searchForUser(user, {
         sort: SortFilter.CreatedAt,
         direction: DirectionFilter.ASC,
       });
@@ -1216,7 +1253,7 @@ describe("SearchHelper", () => {
         updatedAt: new Date("2023-06-01"),
       });
 
-      const { results } = await SearchHelper.searchForUser(user);
+      const { results } = await provider.searchForUser(user);
 
       expect(results.length).toBe(3);
       expect(results[0].document.id).toBe(doc2.id);
@@ -1252,7 +1289,7 @@ describe("SearchHelper", () => {
         updatedAt: new Date("2023-01-01"),
       });
 
-      const { results } = await SearchHelper.searchForUser(user, {
+      const { results } = await provider.searchForUser(user, {
         query: "search",
       });
 
@@ -1288,7 +1325,7 @@ describe("SearchHelper", () => {
         updatedAt: new Date("2025-12-01"),
       });
 
-      const { results } = await SearchHelper.searchForUser(user, {
+      const { results } = await provider.searchForUser(user, {
         query: "search",
         sort: SortFilter.UpdatedAt,
         direction: DirectionFilter.DESC,
@@ -1326,7 +1363,7 @@ describe("SearchHelper", () => {
       });
 
       // Without popularity boost, pure relevance should win
-      const { results: withoutBoost } = await SearchHelper.searchForTeam(team, {
+      const { results: withoutBoost } = await provider.searchForTeam(team, {
         query: "testing",
         usePopularityBoost: false,
       });
@@ -1335,7 +1372,7 @@ describe("SearchHelper", () => {
       expect(withoutBoost[0].document.id).toBe(relevantDoc.id);
 
       // With popularity boost, the popular document may rank higher
-      const { results: withBoost } = await SearchHelper.searchForTeam(team, {
+      const { results: withBoost } = await provider.searchForTeam(team, {
         query: "testing",
         usePopularityBoost: true,
       });
@@ -1350,22 +1387,28 @@ describe("SearchHelper", () => {
 
   describe("webSearchQuery", () => {
     it("should correctly sanitize query", () => {
-      expect(SearchHelper.webSearchQuery("one/two")).toBe("one/two:*");
-      expect(SearchHelper.webSearchQuery("one\\two")).toBe("one\\\\two:*");
-      expect(SearchHelper.webSearchQuery("test''")).toBe("test");
+      expect(PostgresSearchProvider.webSearchQuery("one/two")).toBe(
+        "one/two:*"
+      );
+      expect(PostgresSearchProvider.webSearchQuery("one\\two")).toBe(
+        "one\\\\two:*"
+      );
+      expect(PostgresSearchProvider.webSearchQuery("test''")).toBe("test");
     });
     it("should wildcard unquoted queries", () => {
-      expect(SearchHelper.webSearchQuery("test")).toBe("test:*");
-      expect(SearchHelper.webSearchQuery("'")).toBe("");
-      expect(SearchHelper.webSearchQuery("'quoted'")).toBe(`"quoted":*`);
+      expect(PostgresSearchProvider.webSearchQuery("test")).toBe("test:*");
+      expect(PostgresSearchProvider.webSearchQuery("'")).toBe("");
+      expect(PostgresSearchProvider.webSearchQuery("'quoted'")).toBe(
+        `"quoted":*`
+      );
     });
     it("should wildcard multi-word queries", () => {
-      expect(SearchHelper.webSearchQuery("this is a test")).toBe(
+      expect(PostgresSearchProvider.webSearchQuery("this is a test")).toBe(
         "this&is&a&test:*"
       );
     });
     it("should not wildcard quoted queries", () => {
-      expect(SearchHelper.webSearchQuery(`"this is a test"`)).toBe(
+      expect(PostgresSearchProvider.webSearchQuery(`"this is a test"`)).toBe(
         `"this<->is<->a<->test"`
       );
     });

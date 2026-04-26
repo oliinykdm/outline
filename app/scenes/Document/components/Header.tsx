@@ -3,13 +3,13 @@ import { TableOfContentsIcon, EditIcon } from "outline-icons";
 import { useState, useCallback, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
+import useMeasure from "react-use-measure";
 import styled, { useTheme } from "styled-components";
 import Icon from "@shared/components/Icon";
-import useMeasure from "react-use-measure";
+import useShare from "@shared/hooks/useShare";
 import { altDisplay, metaDisplay } from "@shared/utils/keyboard";
-import type Document from "~/models/Document";
-import type Revision from "~/models/Revision";
-import type Template from "~/models/Template";
+import { publishDocument } from "~/actions/definitions/documents";
+import { restoreRevision } from "~/actions/definitions/revisions";
 import { Action, Separator } from "~/components/Actions";
 import Badge from "~/components/Badge";
 import Button from "~/components/Button";
@@ -18,10 +18,14 @@ import DocumentBreadcrumb from "~/components/DocumentBreadcrumb";
 import { useDocumentContext } from "~/components/DocumentContext";
 import Flex from "~/components/Flex";
 import Header from "~/components/Header";
+import {
+  AppearanceAction,
+  SubscribeAction,
+} from "~/components/Sharing/components/Actions";
 import Star from "~/components/Star";
 import Tooltip from "~/components/Tooltip";
-import { publishDocument } from "~/actions/definitions/documents";
-import { restoreRevision } from "~/actions/definitions/revisions";
+import { type Editor } from "~/editor";
+import env from "~/env";
 import useCurrentTeam from "~/hooks/useCurrentTeam";
 import useCurrentUser from "~/hooks/useCurrentUser";
 import useEditingFocus from "~/hooks/useEditingFocus";
@@ -34,14 +38,15 @@ import DocumentMenu from "~/menus/DocumentMenu";
 import NewChildDocumentMenu from "~/menus/NewChildDocumentMenu";
 import TableOfContentsMenu from "~/menus/TableOfContentsMenu";
 import TemplatesMenu from "~/menus/TemplatesMenu";
+import type Document from "~/models/Document";
+import type Revision from "~/models/Revision";
+import type Template from "~/models/Template";
 import { documentEditPath } from "~/utils/routeHelpers";
+import { ChangesNavigation } from "./ChangesNavigation";
 import ObservingBanner from "./ObservingBanner";
 import PublicBreadcrumb from "./PublicBreadcrumb";
+import { SearchHighlightChip } from "./SearchHighlightChip";
 import ShareButton from "./ShareButton";
-import { AppearanceAction } from "~/components/Sharing/components/Actions";
-import useShare from "@shared/hooks/useShare";
-import { type Editor } from "~/editor";
-import { ChangesNavigation } from "./ChangesNavigation";
 
 type Props = {
   editorRef: React.RefObject<Editor>;
@@ -92,13 +97,13 @@ function DocumentHeader({
   const { hasHeadings, editor } = useDocumentContext();
   const sidebarContext = useLocationSidebarContext();
   const [measureRef, size] = useMeasure();
-  const { isShare, shareId, sharedTree } = useShare();
-  const isMobile = isMobileMedia || size.width < 700;
+  const { isShare, shareId, sharedTree, allowSubscriptions } = useShare();
+  const isMobile = isMobileMedia || (size.width > 0 && size.width < 700);
 
   // We cache this value for as long as the component is mounted so that if you
   // apply a template there is still the option to replace it until the user
   // navigates away from the doc
-  const [isNew] = useState(document.isPersistedOnce);
+  const [wasNew] = useState(document.isPersistedOnce);
 
   const handleSave = useCallback(() => {
     onSave({
@@ -120,6 +125,12 @@ function DocumentHeader({
   const canToggleEmbeds = team?.documentEmbeds;
   const showContents =
     ui.tocVisible === true || (isShare && ui.tocVisible !== false);
+
+  useEffect(() => {
+    if (isMobile && showContents) {
+      ui.set({ tocVisible: false });
+    }
+  }, [isMobile, showContents, ui]);
 
   const toc = (
     <Tooltip
@@ -210,6 +221,9 @@ function DocumentHeader({
         }
         actions={
           <>
+            {allowSubscriptions !== false && !user && env.EMAIL_ENABLED && (
+              <SubscribeAction shareId={shareId} documentId={document.id} />
+            )}
             <AppearanceAction />
             {can.update && !isEditing ? editAction : <div />}
           </>
@@ -248,18 +262,20 @@ function DocumentHeader({
             )}
             {document.title}
             {document.isArchived && <Badge>{t("Archived")}</Badge>}
+            {document.isDraft && <Badge>{t("Draft")}</Badge>}
           </Flex>
         }
         actions={({ isCompact }) => (
           <>
             <ObservingBanner />
+            <SearchHighlightChip />
             {!isDeleted && !isRevision && can.listViews && (
               <Collaborators
                 document={document}
                 limit={isCompact ? 3 : undefined}
               />
             )}
-            {(isEditing || !user?.separateEditMode) && isNew && can.update && (
+            {(isEditing || !user?.separateEditMode) && wasNew && can.update && (
               <Action>
                 <TemplatesMenu
                   isCompact={isCompact}
